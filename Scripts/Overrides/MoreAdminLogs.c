@@ -1,7 +1,7 @@
 
 class MoreAdminLogs extends PluginBase
 {
-	const int LOG_MORE_ADMIN_LOGS_VERSION = 3;
+	const int LOG_MORE_ADMIN_LOGS_VERSION = 4;
 	
 	ref map<string, bool> eventsFilters;
 	ref MoreAdminLogsHelper _helper;
@@ -26,7 +26,6 @@ class MoreAdminLogs extends PluginBase
 		codes.Insert("LOG_PLAYER_VEHICLE");
 		codes.Insert("LOG_PLAYER_HEALTH");
 		codes.Insert("LOG_PLAYER_GEAR");
-		codes.Insert("LOG_PLAYER_INVENTORY");
 		codes.Insert("LOG_PLAYER_HANDS");
 		codes.Insert("-");
 		

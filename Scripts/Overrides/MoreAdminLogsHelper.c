@@ -175,7 +175,8 @@ class MoreAdminLogsHelper
 					else { parents += " - " + parentInfo; }
 				}
 			} else {
-				parents = ownerInfo;
+				if (_isJson) { parents = string.Format("\"owner\":%1", ownerInfo); }
+				else { parents = ownerInfo; }
 			}
 		}
 		if (_isJson) {
@@ -202,8 +203,8 @@ class MoreAdminLogsHelper
 			if (_isJson) return string.Format("{\"id\":\"%1\",\"type\":\"player\"}", player.GetID());
 			return string.Format("player::%1", player.GetID());
 		}
-		if (_isJson) return string.Format("{\"id\":\"%1\",\"name\":\"%2\",\"steamId\":\"%3\",\"dzid\":\"%4\"}", player.GetID(), identity.GetName(), identity.GetId());
-		return string.Format("{%2}::%1/%3/%4", player.GetID(), identity.GetName(), identity.GetPlainId(), identity.GetId());
+		if (_isJson) return string.Format("{\"id\":\"%1\",\"name\":\"%2\",\"steamId\":\"%3\",\"dzid\":\"%4\"}", player.GetID(), identity.GetName(), identity.GetId(), identity.GetPlainId());
+		return string.Format("{%2}::%1/%3/%4", player.GetID(), identity.GetName(), identity.GetId(), identity.GetPlainId());
 	}
 	
 	// PlayerBase stats

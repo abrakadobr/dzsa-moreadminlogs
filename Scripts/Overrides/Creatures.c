@@ -344,6 +344,7 @@ modded class PlayerBase
 	*/
 	
 	//////////////////     items
+	/*
 	override bool DropItem(ItemBase item) {
 		bool ok = super.DropItem(item);
 		if (ok) h_madHelper.LogPlayerInventory(this, "#drop", item, EntityAI.Cast(item.GetParent()), null);
@@ -356,6 +357,7 @@ modded class PlayerBase
 		if (ok) h_madHelper.LogPlayerInventory(this, "#take_to_target", item, null, target);
 		return ok;
 	}
+	*/
 
 	/*
 	override bool PredictiveTakeEntityToInventory (FindInventoryLocationType flags, notnull EntityAI item)
