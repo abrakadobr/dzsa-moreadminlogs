@@ -1,10 +1,11 @@
 
 class MoreAdminLogs extends PluginBase
 {
-	const int LOG_MORE_ADMIN_LOGS_VERSION = 4;
+	const int LOG_MORE_ADMIN_LOGS_VERSION = 6;
 	
 	ref map<string, bool> eventsFilters;
 	ref MoreAdminLogsHelper _helper;
+	int mal_PlayerMovementPosition;
 	
     void MoreAdminLogs()
     {
@@ -23,9 +24,11 @@ class MoreAdminLogs extends PluginBase
 		
 		codes.Insert("LOG_PLAYER_MANAGEMENT");
 		codes.Insert("LOG_PLAYER_MOVEMENT");
+		codes.Insert("LOG_PLAYER_POSITION");
 		codes.Insert("LOG_PLAYER_VEHICLE");
 		codes.Insert("LOG_PLAYER_HEALTH");
 		codes.Insert("LOG_PLAYER_GEAR");
+		codes.Insert("LOG_PLAYER_WEAPON");
 		codes.Insert("LOG_PLAYER_HANDS");
 		codes.Insert("-");
 		
@@ -74,22 +77,26 @@ class MoreAdminLogs extends PluginBase
 		foreach (string key: codes) {
 			if (key != "-") {
 				string cfgKey = logConfigKey(key);
-				string logKey = key.Substring(4, key.Length() - 1);
-				this.eventsFilters[logKey] = GetGame().ServerConfigGetInt(cfgKey) == 1;
+				int keyLen = key.Length();
+				string logKey = key.Substring(4, keyLen - 4);
+				this.eventsFilters[logKey] = GetGame().ServerConfigGetInt(cfgKey) >= 1;
 			}
 		}
+		
+		this.mal_PlayerMovementPosition = GetGame().ServerConfigGetInt("moreAdminLogsPlayerPosition");
+		if (this.mal_PlayerMovementPosition < 1) this.mal_PlayerMovementPosition = 0;
 		
 		this._helper = new MoreAdminLogsHelper(IsJson(), IsOverride());
 		
 		if (IsEnabled()) {
-			string message = string.Format("*  More Admin Logs :: version=<%1> json=<%2> override=<%3>", LOG_MORE_ADMIN_LOGS_VERSION, IsJson(), IsOverride());
+			string message = string.Format("*  More Admin Logs :: version=<%1> json=<%2> override=<%3> positions=<%4>", LOG_MORE_ADMIN_LOGS_VERSION, IsJson(), IsOverride(), mal_PlayerMovementPosition);
 			DirectLog(message);
 			string jsonMessage = "";
 			foreach (string key1: codes) {
 				if (key1 == "-") {
 					DirectLog("*");
 				} else {
-					string fkey = key1.Substring(4, key1.Length() - 1);
+					string fkey = key1.Substring(4, key1.Length() - 4);
 					bool keyState = eventsFilters[fkey];
 					message = string.Format("*  <%1> (%3) is <%2>", fkey , keyState, logConfigKey(key1));
 					if (jsonMessage != "") jsonMessage += ", ";
@@ -97,7 +104,7 @@ class MoreAdminLogs extends PluginBase
 					DirectLog(message);
 				}
 			}
-			DirectLog(string.Format("JSON{\"moreAdminLogs\":%1,\"version\":%2,\"json\":%3,\"override\":%4,\"config\":{%5}}", IsEnabled(), LOG_MORE_ADMIN_LOGS_VERSION, IsJson(), IsOverride(), jsonMessage));
+			DirectLog(string.Format("JSON{\"moreAdminLogs\":%1,\"version\":%2,\"json\":%3,\"override\":%4,\"config\":{%5}, \"positions\": %6}", IsEnabled(), LOG_MORE_ADMIN_LOGS_VERSION, IsJson(), IsOverride(), jsonMessage, mal_PlayerMovementPosition));
 		}
     }
 
@@ -135,9 +142,11 @@ class MoreAdminLogs extends PluginBase
 		return "moreAdminLogs" + result;
 	}
 	
-	bool IsEnabled()
+	bool IsEnabled(string code = "")
 	{
-		return !!this.eventsFilters["MORE_ADMIN_LOGS"];
+		bool state = !!this.eventsFilters["MORE_ADMIN_LOGS"];
+		if (!state || code == "") return state;
+		return FilterPass(code);
 	}
 	
 	bool IsJson() {
@@ -150,6 +159,14 @@ class MoreAdminLogs extends PluginBase
 
 	bool IsNoWorld() {
 		return !!this.eventsFilters["NO_WORLD"];
+	}
+	
+	bool LogPositions() {
+		return IsEnabled("PLAYER_POSITION") && this.mal_PlayerMovementPosition > 0;
+	}
+	
+	int PlayerPositionTime() {
+		return this.mal_PlayerMovementPosition;
 	}
 
 	bool _FilterPass(string source)
@@ -172,7 +189,7 @@ class MoreAdminLogs extends PluginBase
 	/// PLAYER_MANAGEMENT
 	void LogPlayerManagement(PlayerBase player, string tag)
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("PLAYER_MANAGEMENT")) return;
 		string message = tag;
 		if (IsJson()) message = string.Format("{\"tag\":\"%1\"}", tag);
 		PlayerLog(player, "PLAYER_MANAGEMENT", message, true);
@@ -181,7 +198,7 @@ class MoreAdminLogs extends PluginBase
 	/// PLAYER_HANDS
 	void LogPlayerHands(PlayerBase player, string tag, EntityAI item)
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("PLAYER_HANDS")) return;
 		string message = string.Format("%1 item=<%2>", tag, _helper.EntityInfo(item));
 		if (IsJson()) message = string.Format("{\"tag\":\"%1\",\"item\":%2}", tag, _helper.EntityInfo(item));
 		PlayerLog(player, "PLAYER_HANDS", message);
@@ -190,7 +207,7 @@ class MoreAdminLogs extends PluginBase
 	/// PLAYER_MOVEMENT
 	void LogPlayerMovement(PlayerBase player, string tag, float speed = 0)
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("PLAYER_MOVEMENT")) return;
 		string message = tag;
 		if (speed > 0) message = string.Format("%1 speed=<%2>", tag, speed);
 		if (IsJson()) {
@@ -203,10 +220,16 @@ class MoreAdminLogs extends PluginBase
 		PlayerLog(player, "PLAYER_MOVEMENT", message);
 	}
 	
+	/// PLAYER_MOVEMENT
+	void LogPlayerPosition(PlayerBase player) {
+		if (!IsEnabled("PLAYER_POSITION")) return;
+		PlayerLog(player, "PLAYER_POSITION", "null");
+	}
+	
 	/// PLAYER_VEHICLE
 	void LogPlayerVehicle(PlayerBase player, string tag)
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("PLAYER_VEHICLE")) return;
 		string message = tag;
 		if (IsJson()) message = string.Format("{\"tag\":\"%1\"}", tag);
 		PlayerLog(player, "PLAYER_VEHICLE", message);
@@ -215,7 +238,7 @@ class MoreAdminLogs extends PluginBase
 	/// PLAYER_HEALTH
 	void LogPlayerHealth(PlayerBase player, string tag)
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("PLAYER_HEALTH")) return;
 		string message = tag;
 		if (IsJson()) message = string.Format("{\"tag\":\"%1\"}", tag);
 		PlayerLog(player, "PLAYER_HEALTH", message, true);
@@ -223,7 +246,7 @@ class MoreAdminLogs extends PluginBase
 	
 	void LogPlayerHealthBleeds(PlayerBase player, int bleedingBits)
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("PLAYER_HEALTH")) return;
 		string message = string.Format("#bleeds bits=<%1>", bleedingBits);
 		if (IsJson()) message = string.Format("{\"tag\":\"#bleeds\",\"bits\":%1}", bleedingBits);
 		PlayerLog(player, "PLAYER_HEALTH", message, true);
@@ -231,7 +254,7 @@ class MoreAdminLogs extends PluginBase
 	
 	void LogPlayerHealthConsume(PlayerBase player, ItemBase source, float amount)
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("PLAYER_HEALTH")) return;
 		string sourceInfo = _helper.ItemInfo(source);
 		string message = string.Format("#consume source=<%1> amount=<%2>", sourceInfo, amount);
 		if (IsJson()) message = string.Format("{\"tag\":\"#consume\",\"source\":%1,\"amount\":%2}", sourceInfo, amount);
@@ -241,7 +264,7 @@ class MoreAdminLogs extends PluginBase
 	/// PLAYER_GEAR
 	void LogPlayerGear(PlayerBase player, string tag, EntityAI item, string slot_name)
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("PLAYER_GEAR")) return;
 		string itemInfo = _helper.EntityInfo(item);
 		string message = string.Format("%1 item=<%1> slot=<%3>", tag, itemInfo, slot_name);
 		if (IsJson()) message = string.Format("{\"tag\":\"%1\",\"item\":%2,\"slot\":\"%3\"}", tag, itemInfo, slot_name);
@@ -251,7 +274,7 @@ class MoreAdminLogs extends PluginBase
 	/// PLAYER_INVENTORY
 	void LogPlayerInventory(PlayerBase player, string tag, EntityAI item, EntityAI from, EntityAI to)
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("PLAYER_INVENTORY")) return;
 		string itemInfo = _helper.EntityInfo(item);
 		string fromInfo = _helper.EntityInfo(item);
 		string toInfo = _helper.EntityInfo(item);
@@ -277,7 +300,7 @@ class MoreAdminLogs extends PluginBase
 	/// PLAYER DELETE (corpse or alive logout)
 	void LogPlayerDelete(PlayerBase player, EntityAI parent)
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("PLAYER_DEATH")) return;
 		string message = string.Format("");
 		if (IsJson()) {
 			PlayerLog(player, "PLAYER_DEATH", "{\"tag\":\"#corpse_destoryed\"}");
@@ -288,6 +311,7 @@ class MoreAdminLogs extends PluginBase
 
 	void PlayerDeathDetails(PlayerBase player, string details)
 	{
+		if (!IsEnabled("LOG_PLAYER_DEATH_DETAILS")) return;
 		string msg = string.Format("details=<%1>");
 		if (IsJson()) msg = string.Format("{\"details\":\"%1\"}", details);
 		PlayerLog(player, "LOG_PLAYER_DEATH_DETAILS", msg);
@@ -319,10 +343,20 @@ class MoreAdminLogs extends PluginBase
 		LogKilled("INFECTED", target, killer);
 	}
 
+	/////////////////////////		WEAPONS
+	void LogWeapon(PlayerBase player, string tag, Weapon_Base weapon)
+	{
+		if (!IsEnabled("PLAYER_WEAPON")) return;
+		string weaponInfo = _helper.EntityInfo(weapon);
+		string message = string.Format("#%1 weapon=<%2>", tag, weaponInfo);
+		if (IsJson()) message = string.Format("{\"tag\":\"%1\",\"weapon\":%2}", tag, weaponInfo);
+		PlayerLog(player, "PLAYER_WEAPON", message);		
+	}
+
 	/////////////////////////		ACTIONS
 	void LogAction(ActionBase action, string logGroup, ActionData actionData)
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("ACTION_" + logGroup + "LOG")) return;
 		PlayerLog(actionData.m_Player, "ACTION_" + logGroup + "LOG", action.GetAdminLogMessage(actionData));
 	}
 
@@ -344,7 +378,7 @@ class MoreAdminLogs extends PluginBase
 	/// placed
 	void LogItemPlaced(ItemBase target, Man player, vector position = "0 0 0", vector orientation = "0 0 0" )
 	{
-		if (!IsEnabled() || !IsOverride()) return;
+		if (!IsEnabled("ITEM_PLACED") || !IsOverride()) return;
 		string itemInfo = _helper.ItemInfo(target);
 		string message = string.Format("item=<%1> position=<%2> orientation=<%3>", itemInfo, _helper.Vector3Info(position), _helper.Vector3Info(orientation) );
 		if (IsJson()) message = string.Format("{\"item\":%1,\"position\":%2,\"orientation\":%3}", itemInfo, _helper.Vector3Info(position), _helper.Vector3Info(orientation) );
@@ -354,7 +388,7 @@ class MoreAdminLogs extends PluginBase
 	/// location
 	void LogItemLocation(ItemBase item, notnull InventoryLocation oldLoc, notnull InventoryLocation newLoc)
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("ITEM_LOCATION")) return;
 		
 		if (!item) return;
 		string itemInfo = _helper.ItemInfo(item, false, false, false, true);
@@ -382,6 +416,10 @@ class MoreAdminLogs extends PluginBase
 		locations[InventoryLocationType.PROXYCARGO] = "#proxy";
 		
 		bool passNoWorld = locations[oldLoc.GetType()] != "#world" && locations[newLoc.GetType()] != "#world";
+		
+		if (locations[oldLoc.GetType()] == "#ground" || locations[newLoc.GetType()] == "#ground") {
+			itemInfo = _helper.ItemInfo(item, false, false, false, true, true);
+		}
 		
 		if (!oldPlayer && !newPlayer) {
 			// care if it's not player related - may be cargo on ground near player
@@ -441,7 +479,7 @@ class MoreAdminLogs extends PluginBase
 	///	attached
 	void LogItemAttached(ItemBase target, EntityAI parent, int slot_id )
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("ITEM_ATTACH")) return;
 		
 		string itemInfo = _helper.ItemInfo(target, false, true, false, true);
 		string parentInfo = _helper.EntityInfo(parent);
@@ -466,7 +504,7 @@ class MoreAdminLogs extends PluginBase
 	///	detached
 	void LogItemDetached(ItemBase target, EntityAI parent, int slot_id )
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("ITEM_DETACH")) return;
 		
 		string itemInfo = _helper.ItemInfo(target, false, false, false, true);
 		string parentInfo = _helper.EntityInfo(parent);
@@ -491,7 +529,7 @@ class MoreAdminLogs extends PluginBase
 	///	quantity
 	void LogItemQuantity(ItemBase target, float value, bool wasDestroyed)
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("ITEM_QUANTITY")) return;
 		
 		PlayerBase player = PlayerBase.Cast(target.GetHierarchyRootPlayer());
 		string itemInfo = _helper.ItemInfo(target, true, true, false, true);
@@ -513,7 +551,7 @@ class MoreAdminLogs extends PluginBase
 	
 	void LogBaseBuildPart(BaseBuildingBase base,  notnull Man player, string part_name, int action_id )
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("BASEBUILDING")) return;
 		string message = string.Format("#build id=<%1> type=<%2> part=<%3>", base.GetID(), base.GetType(), part_name);
 		if (IsJson()) message = string.Format("{ \"tag\":\"#build\",\"id\":\"%1\",\"type\":\"%2\",\"part\":\"%3\"}", base.GetID(), base.GetType(), part_name);
 		PlayerLog(PlayerBase.Cast(player), "BASEBUILDING", message);
@@ -521,7 +559,7 @@ class MoreAdminLogs extends PluginBase
 	
 	void LogBaseDismantlePart(BaseBuildingBase base,  notnull Man player, string part_name, int action_id )
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("BASEBUILDING")) return;
 		string message = string.Format("#dismantle id=<%1> type=<%2> part=<%3>", base.GetID(), base.GetType(), part_name);
 		if (IsJson()) message = string.Format("{ \"tag\":\"#dismantle\",\"id\":\"%1\",\"type\":\"%2\",\"part\":\"%3\"}", base.GetID(), base.GetType(), part_name);
 		PlayerLog(PlayerBase.Cast(player), "BASEBUILDING", message);
@@ -529,7 +567,7 @@ class MoreAdminLogs extends PluginBase
 	
 	void LogBaseDestroyPart( BaseBuildingBase base, Man player, string part_name, int action_id, bool destroyed_by_connected_part )
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("BASEBUILDING")) return;
 		string message = string.Format("#destroy id=<%1> type=<%2> part=<%3>", base.GetID(), base.GetType(), part_name);
 		if (IsJson()) message = string.Format("{ \"tag\":\"#destroy\",\"id\":\"%1\",\"type\":\"%2\",\"part\":\"%3\"}", base.GetID(), base.GetType(), part_name);
 		PlayerLog(PlayerBase.Cast(player), "BASEBUILDING", message);
@@ -541,7 +579,7 @@ class MoreAdminLogs extends PluginBase
 	/// hit log
 	void LogHit(string logGroup, EntityAI target, TotalDamageResult damageResult, int damageType, EntityAI source, int component, string dmgZone, string ammo, vector modelPos, float speedCoef, bool sameAlive = true)
 	{
-		string targetInfo = _helper.EntityInfo(target, true, true, true);
+		string targetInfo = _helper.EntityInfo(target, true, true, true, true, true);
 		string sourceInfo = "null";
 		PlayerBase sourcePlayer = null;
 		string sourcePlayerInfo = "null";
@@ -553,13 +591,13 @@ class MoreAdminLogs extends PluginBase
 			sourceInfo = _helper.EntityInfo(source);
 			if (source.GetHierarchyRootPlayer()) {
 				sourcePlayer = PlayerBase.Cast(source.GetHierarchyRootPlayer());
-				sourcePlayerInfo = _helper.PlayerInfo(sourcePlayer, true);
+				sourcePlayerInfo = _helper.PlayerInfoShort(sourcePlayer);
 			}
 			
 			if (damageType == DT_CLOSE_COMBAT) {
 				if (source.IsPlayer()) {
 					sourcePlayer = PlayerBase.Cast(source);
-					sourcePlayerInfo = _helper.PlayerInfo(sourcePlayer, true);
+					sourcePlayerInfo = _helper.PlayerInfoShort(sourcePlayer);
 					sourceInfo = "melee";
 					if (IsJson()) sourceInfo = "\"melee\"";
 				}
@@ -618,7 +656,8 @@ class MoreAdminLogs extends PluginBase
 			return;
 		}
 		BaseBuildingBase bbItem = BaseBuildingBase.Cast(target);
-		NoPlayerLog(code, message, !!bbItem);
+		bool isInteresting = target.IsTransport();
+		NoPlayerLog(code, message, !!bbItem && !isInteresting);
 	}
 	
 	/// kill log
@@ -626,13 +665,13 @@ class MoreAdminLogs extends PluginBase
 	{
 		if (!IsEnabled() || !IsOverride()) return;
 		
-		string targetInfo = _helper.EntityInfo(target);
+		string targetInfo = _helper.EntityInfo(target, true, true, true, true, true);
 		string killerInfo = "null";
 		EntityAI eKiller = EntityAI.Cast(killer);
 		PlayerBase realKiller = NULL;
-		
+		string sourceInfo = "null";
 		if (killer) {
-			string sourceInfo = _helper.ObjectInfo(killer);
+			sourceInfo = _helper.ObjectInfo(killer);
 			float distance = vector.Distance( target.GetPosition(), killer.GetPosition() );
 			if (distance < 0.01) distance = 0; // fix veeeery small values like 1.0-eXX
 			if (killer == target) {
@@ -648,13 +687,13 @@ class MoreAdminLogs extends PluginBase
 						killerInfo = _helper.EntityInfo(eKiller);
 					}
 					if (eKiller.IsPlayer()) {
-						killerInfo = _helper.PlayerInfo(PlayerBase.Cast(eKiller), true);
+						killerInfo = _helper.PlayerInfoShort(PlayerBase.Cast(eKiller));
 						sourceInfo = "melee";
 						if (IsJson()) sourceInfo = "\"melee\"";
 					}
 					if (eKiller.IsMeleeWeapon() || eKiller.IsWeapon()) {
 						sourceInfo = _helper.EntityInfo(eKiller);
-						killerInfo = _helper.PlayerInfo(PlayerBase.Cast(eKiller.GetHierarchyRootPlayer()), true);
+						killerInfo = _helper.PlayerInfoShort(PlayerBase.Cast(eKiller.GetHierarchyRootPlayer()));
 						realKiller = PlayerBase.Cast(eKiller.GetHierarchyRootPlayer());
 					}
 					if (eKiller.GetType() == "AreaDamageManager")
@@ -690,7 +729,7 @@ class MoreAdminLogs extends PluginBase
 
 	void OnlineList()
 	{
-		if (!IsEnabled()) return;
+		if (!IsEnabled("ONLINE")) return;
 		
 		ref array<Man> players = new array<Man>();
 		GetGame().GetPlayers( players );
@@ -707,11 +746,13 @@ class MoreAdminLogs extends PluginBase
 				}
 			}
 		} else {
+			/*
 			if (IsJson()) {
 				NoPlayerLog("ONLINE", "{\"online\":0}");
 			} else {
 				NoPlayerLog("ONLINE", "online=<0>");
 			}
+			*/
 		}
 		delete players;
 	}
@@ -728,6 +769,7 @@ class MoreAdminLogs extends PluginBase
 		string playerInfo = _helper.PlayerInfo( player, withStatsOrPass );
 		string msg = string.Format("[%1] - [%3] - [%2]", source, playerInfo, message);
 		if (IsJson()) msg = string.Format("JSON{\"event\":\"%1\",\"data\":%3,\"player\":%2}", source, playerInfo, message);
+		player.ResetPositionLogTimer();
 		DirectLog(msg);
 	}
 

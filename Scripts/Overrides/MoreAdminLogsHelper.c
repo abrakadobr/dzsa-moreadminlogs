@@ -19,6 +19,17 @@ class MoreAdminLogsHelper
 		return pos;
 	}
 
+	// Vector4 (Quaternion) info
+	string Vector4Info(float vec[4]) {
+		if (vec[0] < 0.001 && vec[0] > -0.001) vec[0] = 0;
+		if (vec[1] < 0.001 && vec[1] > -0.001) vec[1] = 0;
+		if (vec[2] < 0.001 && vec[2] > -0.001) vec[2] = 0;
+		if (vec[3] < 0.001 && vec[3] > -0.001) vec[3] = 0;
+		string pos = string.Format("%1, %2, %3, %4", vec[0], vec[1], vec[2], vec[3]);
+		if (_isJson) pos = string.Format("{\"x\":%1,\"y\":%2,\"z\":%3,\"w\":%3}", vec[0], vec[1], vec[2], vec[3]);
+		return pos;
+	}
+
 	// Object info
 	string ObjectInfo( Object item, bool withParent = false, bool withOwner = false, bool withHp = false )
 	{
@@ -63,12 +74,12 @@ class MoreAdminLogsHelper
 	}	
 	
 	// EntityAI info
-	string EntityInfo(EntityAI item, bool withParent = false, bool withOwner = false, bool withHp = false)
+	string EntityInfo(EntityAI item, bool withParent = false, bool withOwner = false, bool withHp = false, bool withQuantity = false, bool withPosition = false )
 	{
 		if (!item) return "null";
 		if (item.IsPlayer()) return PlayerInfoShort(PlayerBase.Cast(item));
 		ItemBase bitem = ItemBase.Cast(item);
-		if (bitem) return this.ItemInfo(bitem);
+		if (bitem) return this.ItemInfo(bitem, withParent, withOwner, withHp, withQuantity, withPosition);
 		string type = item.GetType();
 		
 		float percentHealth = (item.GetHealth() * 100) / item.GetMaxHealth();
@@ -105,7 +116,7 @@ class MoreAdminLogsHelper
 	}
 	
 	// ItemBase info
-	string ItemInfo( ItemBase item, bool withParent = false, bool withOwner = false, bool withHp = false, bool withQuantity = false )
+	string ItemInfo( ItemBase item, bool withParent = false, bool withOwner = false, bool withHp = false, bool withQuantity = false, bool withPosition = false )
 	{
 		if (!item) return "null";
 		string type = item.GetType();
@@ -147,6 +158,11 @@ class MoreAdminLogsHelper
 				if (withQuantity) { base = string.Format("%1%3/%2::%4", type, percentHealth, amount, item.GetID()); }
 				else { base = string.Format("%1/%2::%3", type, percentHealth, item.GetID()); }
 			}
+		}
+		if (withPosition) {
+			string itemPos = Vector3Info( item.GetPosition() );
+			if (_isJson) { base += string.Format(",\"pos\":%1", itemPos); }
+			else { base += string.Format("{%1}", itemPos); }
 		}
 		
 		EntityAI parent = item.GetHierarchyParent();
@@ -203,7 +219,7 @@ class MoreAdminLogsHelper
 			if (_isJson) return string.Format("{\"id\":\"%1\",\"type\":\"player\"}", player.GetID());
 			return string.Format("player::%1", player.GetID());
 		}
-		if (_isJson) return string.Format("{\"id\":\"%1\",\"name\":\"%2\",\"steamId\":\"%3\",\"dzid\":\"%4\"}", player.GetID(), identity.GetName(), identity.GetId(), identity.GetPlainId());
+		if (_isJson) return string.Format("{\"id\":\"%1\",\"name\":\"%2\",\"steamId\":\"%4\",\"dzid\":\"%3\"}", player.GetID(), identity.GetName(), identity.GetId(), identity.GetPlainId());
 		return string.Format("{%2}::%1/%3/%4", player.GetID(), identity.GetName(), identity.GetId(), identity.GetPlainId());
 	}
 	
@@ -243,6 +259,46 @@ class MoreAdminLogsHelper
 		return stats;
 	}
 	
+	string PlayerSkelton( PlayerBase player)
+	{
+		if (!player) return "null";
+
+		string body = Vector3Info(player.GetDirection());
+		string head = "null";
+		string neck = "null";
+		string spine1 = "null";
+		string spine2 = "null";
+		string spine3 = "null";
+		
+		// bones
+		vector transform = "0 0 0";
+
+		int boneIdx = player.GetBoneIndexByName("Head");
+		player.GetBoneTransformWS( boneIdx, transform );
+		head = Vector3Info( transform );
+
+		boneIdx = player.GetBoneIndexByName("Neck");
+		player.GetBoneTransformWS( boneIdx, transform );
+		neck = Vector3Info( transform );
+
+		boneIdx = player.GetBoneIndexByName("spine1");
+		player.GetBoneTransformWS( boneIdx, transform );
+		spine1 = Vector3Info( transform );
+
+		boneIdx = player.GetBoneIndexByName("spine2");
+		player.GetBoneTransformWS( boneIdx, transform );
+		spine2 = Vector3Info( transform );
+
+		boneIdx = player.GetBoneIndexByName("spine3");
+		player.GetBoneTransformWS( boneIdx, transform );
+		spine3 = Vector3Info( transform );
+
+		if (_isJson) {
+			return string.Format("{\"body\":%1,\"head\":%2,\"neck\":%3,\"spine1\":%4,\"spine2\":%5,\"spine3\":%6}", body, head, neck, spine1, spine2, spine3);
+		}
+		return string.Format("body=<%1> head=<%2> neck=<%3> spine1=<%4> spine2=<%5> spine3=<%6>", body, head, neck, spine1, spine2, spine3);
+	}
+	
 	string PlayerPrefix( PlayerBase player, bool noStats = false )
 	{	
 		if (!player) return "null";
@@ -255,20 +311,23 @@ class MoreAdminLogsHelper
 		
 		string stats = PlayerStatsLine(player);
 		string pos = Vector3Info(player.GetPosition());
+		
+		string body = Vector3Info(player.GetDirection());
+		//string skeleton = PlayerSkelton(player);
 
 		PlayerIdentity pIdentity = player.GetIdentity();
 		
 		if ( !pIdentity ) {
 			if (_isJson) {
 				if (noStats) {
-					return string.Format("{\"id\":\"%4\",\"name\":\"%1\",\"dzid\":null,\"steamId\":null,\"position\":%3}", name, pid, pos, sid);
+					return string.Format("{\"id\":\"%1\",\"name\":\"%2\",\"dzid\":null,\"steamId\":null,\"position\":%3}", sid, name, pos);
 				}
-				return string.Format("{\"id\":\"%5\",\"name\":\"%1\",\"dzid\":null,\"steamId\":null,\"stats\":%3,\"position\":%4}", name, pid, stats, pos, sid);
+				return string.Format("{\"id\":\"%1\",\"name\":\"%2\",\"dzid\":null,\"steamId\":null,\"stats\":%3,\"position\":%4}", sid, name, stats, pos);
 			}
 			if (noStats) {
-				return string.Format("id=<%4> name=<%1> dzid=<%2> steam=<%5> pos=<%3>", name, pid, pos, sid, steamId);
+				return string.Format("id=<%1> name=<%2> dzid=<%3> steam=<%4> pos=<%5>", sid, name, pid, steamId, pos);
 			}
-			return string.Format("id=<%5> name=<%1> dzid=<%2> steam=<%5> stats=<%3> pos=<%4>", name, pid, stats, pos, sid, steamId);
+			return string.Format("id=<%1> name=<%2> dzid=<%3> steam=<%4> stats=<%5> pos=<%6>", sid, name, pid, steamId, stats, pos);
 		}
 		
 		name = pIdentity.GetName();
@@ -277,19 +336,19 @@ class MoreAdminLogsHelper
 		
 		if (_isJson) {
 			if (noStats) {
-				if (!player.IsAlive()) return string.Format("{\"id\":\"%4\",\"name\":\"%1\",\"dzid\":\"%2\",\"steamId\":\"%5\",\"position\":%3,\"dead\":true}", name, pid, pos, sid, steamId);
-				return string.Format("{\"id\":\"%4\",\"name\":\"%1\",\"dzid\":\"%2\",\"steamId\":\"%5\",\"position\":%3}", name, pid, pos, sid, steamId);
+				if (!player.IsAlive()) return string.Format("{\"id\":\"%1\",\"name\":\"%2\",\"dzid\":\"%3\",\"steamId\":\"%4\",\"position\":%5,\"direction\":%6,\"dead\":true}", sid, name, pid, steamId, pos, body);
+				return string.Format("{\"id\":\"%1\",\"name\":\"%2\",\"dzid\":\"%3\",\"steamId\":\"%4\",\"position\":%5,\"direction\":%6}", sid, name, pid, steamId, pos, body);
 			}
-			if (!player.IsAlive()) return string.Format("{\"id\":\"%5\",\"name\":\"%1\",\"dzid\":\"%2\",\"steamId\":\"%6\",\"stats\":%3,\"position\":%4,\"dead\":true}", name, pid, stats, pos, sid, steamId);
-			return string.Format("{\"id\":\"%5\",\"name\":\"%1\",\"dzid\":\"%2\",\"steamId\":\"%6\",\"stats\":%3,\"position\":%4}", name, pid, stats, pos, sid, steamId);
+			if (!player.IsAlive()) return string.Format("{\"id\":\"%1\",\"name\":\"%2\",\"dzid\":\"%3\",\"steamId\":\"%4\",\"position\":%5,\"direction\":%6,\"stats\":%7,\"dead\":true}", sid, name, pid, steamId, pos, body, stats);
+			return string.Format("{\"id\":\"%1\",\"name\":\"%2\",\"dzid\":\"%3\",\"steamId\":\"%4\",\"position\":%5,\"direction\":%6,\"stats\":%7}", sid, name, pid, steamId, pos, body, stats);
 		}
 		
 		if ( !player.IsAlive() ) name = name + " !DEAD";
 		
 		if (noStats) {
-			return string.Format("id=<%4> name=<%1> dzid=<%2> steamId=<%5> pos=<%3>", name, pid, pos, sid, steamId);
+			return string.Format("id=<%1> name=<%2> dzid=<%3> steamId=<%4> pos=<%5> direction=<%6>", sid, name, pid, steamId, pos, body);
 		}
-		return string.Format("id=<%5> name=<%1> dzid=<%2> steamId=<%6> stats=<%3> pos=<%4>", name, pid, stats, pos, sid, steamId);
+		return string.Format("id=<%1> name=<%2> dzid=<%3> steamId=<%4> pos=<%5> direction=<%6> stats=<%7>", sid, name, pid, steamId, pos, body, stats);
 	}
 
 	// ActionBase info
